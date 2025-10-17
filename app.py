@@ -4,11 +4,88 @@ import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
+from st_aggrid import AgGrid, GridOptionsBuilder
 
 # Page config
 st.set_page_config(page_title="Strategic Workforce Planning Dashboard", layout="wide")
 
-# Generate mock data
+# Apply Zeppelin styling to the Streamlit interface
+st.markdown("""
+<style>
+    /* Main app styling with Zeppelin colors */
+    .main .block-container {
+        padding-top: 2rem;
+        padding-bottom: 2rem;
+        max-width: 1200px;
+    }
+    
+    /* Sidebar styling */
+    .css-1d391kg {
+        background-color: #F8F9FA;
+    }
+    
+    /* Headers with Zeppelin colors */
+    h1 {
+        color: #27166F !important;
+        font-family: Arial, sans-serif !important;
+    }
+    
+    h2, h3, h4, h5, h6 {
+        color: #193A68 !important;
+        font-family: Arial, sans-serif !important;
+    }
+    
+    /* Metrics styling */
+    [data-testid="metric-container"] {
+        background-color: #FFFFFF;
+        border: 1px solid #8C8C8C;
+        border-radius: 8px;
+        padding: 1rem;
+    }
+    
+    [data-testid="metric-value"] {
+        color: #27166F !important;
+        font-weight: bold !important;
+    }
+    
+    [data-testid="metric-label"] {
+        color: #193A68 !important;
+        font-weight: 600 !important;
+    }
+    
+    /* Buttons and controls */
+    .stButton > button {
+        background-color: #00A5DD;
+        color: #FFFFFF;
+        border: none;
+        border-radius: 4px;
+    }
+    
+    .stButton > button:hover {
+        background-color: #193A68;
+    }
+    
+    /* Selectbox and multiselect styling */
+    .stSelectbox > div > div {
+        background-color: #FFFFFF;
+        border: 1px solid #8C8C8C;
+    }
+    
+    /* Expander styling */
+    .streamlit-expanderHeader {
+        background-color: #B0D6F2;
+        color: #193A68;
+        font-weight: bold;
+    }
+    
+    /* Dataframe styling */
+    .stDataFrame {
+        border: 1px solid #8C8C8C;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# Generate mock data with more logical workforce metrics
 @st.cache_data
 def generate_mock_data():
     np.random.seed(42)
@@ -36,15 +113,15 @@ def generate_mock_data():
         'Grade': np.random.choice(grades, n_employees),
         'Grade_Progression': np.random.uniform(-2, 2, n_employees),
         'Current_Employee': 1,
-        'Exits': np.random.choice([0, 1], n_employees, p=[0.9, 0.1]),
-        'Moves_Out': np.random.choice([0, 1], n_employees, p=[0.95, 0.05]),
+        'Exits': np.random.choice([0, 1], n_employees, p=[0.85, 0.15]),  # 15% exit rate
+        'Moves_Out': np.random.choice([0, 1], n_employees, p=[0.92, 0.08]),  # 8% move out rate
         'Hires': 0,
         'Moves_In': 0,
-        'Predicted_Exits': np.random.choice([0, 1], n_employees, p=[0.92, 0.08])
+        'Predicted_Exits': np.random.choice([0, 1], n_employees, p=[0.88, 0.12])  # 12% predicted exit rate
     })
     
-    # Add some hires and moves
-    n_hires = 50
+    # Add some hires and moves with more realistic numbers
+    n_hires = 75  # 15% hire rate to offset exits
     hires_df = pd.DataFrame({
         'Employee_ID': [f'NEW{i:04d}' for i in range(1, n_hires + 1)],
         'SBU': np.random.choice(sbus, n_hires),
@@ -60,7 +137,7 @@ def generate_mock_data():
         'Exits': 0,
         'Moves_Out': 0,
         'Hires': 1,
-        'Moves_In': np.random.choice([0, 1], n_hires, p=[0.7, 0.3]),
+        'Moves_In': np.random.choice([0, 1], n_hires, p=[0.6, 0.4]),  # 40% are moves in
         'Predicted_Exits': 0
     })
     
@@ -255,12 +332,12 @@ with col1:
     # Create scatter plot with individual employee dots
     fig_matrix = go.Figure()
     
-    # Define colors for each category
+    # Define colors for each category using Zeppelin color scheme
     colors = {
-        'Established': '#FF6B6B',  # Light red
-        'Peaking': '#4ECDC4',      # Teal
-        'Developing': '#45B7D1',   # Blue
-        'Rising': '#96CEB4'        # Green
+        'Established': '#AF0E0E',  # Zeppelin Red
+        'Peaking': '#00A5DD',      # Zeppelin Cyan
+        'Developing': '#193A68',   # Zeppelin Dark Blue
+        'Rising': '#82368C'        # Zeppelin Purple
     }
     
     # Add scatter points for each category
@@ -380,10 +457,10 @@ with col2:
         y=values,
         text=[f"{v:+.0f}" if v < 0 else f"{v:.0f}" for v in values],
         textposition="outside",
-        connector={"line": {"color": "rgb(63, 63, 63)"}},
-        decreasing={"marker": {"color": "#d62728"}},
-        increasing={"marker": {"color": "#2ca02c"}},
-        totals={"marker": {"color": "#1f77b4"}}
+        connector={"line": {"color": "#8C8C8C"}},
+        decreasing={"marker": {"color": "#AF0E0E"}},
+        increasing={"marker": {"color": "#00A5DD"}},
+        totals={"marker": {"color": "#27166F"}}
     ))
     
     # Add target line using layout shapes instead of add_hline
@@ -392,7 +469,7 @@ with col2:
         x0=0, x1=1,
         y0=target, y1=target,
         xref="paper", yref="y",
-        line=dict(dash="dash", color="orange", width=2)
+        line=dict(dash="dash", color="#FFCC00", width=2)
     )
     
     # Add target annotation
@@ -404,9 +481,9 @@ with col2:
         arrowhead=2,
         arrowsize=1,
         arrowwidth=2,
-        arrowcolor="orange",
+        arrowcolor="#FFCC00",
         ax=-20, ay=-30,
-        font=dict(size=12, color="orange")
+        font=dict(size=12, color="#FFCC00")
     )
     
     fig_bridge.update_layout(
@@ -419,272 +496,328 @@ with col2:
 
 st.markdown("---")
 
-# Section 2: Detailed Breakdown Table
-st.markdown("#### 📋 Detailed Workforce Movement Breakdown")
+# Section 2: Workforce Summary Metrics (CHRO-focused)
+st.markdown("#### 📊 Workforce Summary Metrics")
 
-# Aggregate data by hierarchy
-def create_hierarchy_table(df):
-    # SBU Level
-    sbu_agg = df.groupby('SBU').agg({
-        'Current_Employee': 'sum',
-        'Exits': 'sum',
-        'Moves_Out': 'sum',
-        'Hires': 'sum',
-        'Moves_In': 'sum',
-        'Predicted_Exits': 'sum'
-    }).reset_index()
-    sbu_agg['Level'] = 'SBU'
-    sbu_agg['Name'] = sbu_agg['SBU']
-    sbu_agg['Parent'] = ''
-    
-    # Company Level
-    company_agg = df.groupby(['SBU', 'Company']).agg({
-        'Current_Employee': 'sum',
-        'Exits': 'sum',
-        'Moves_Out': 'sum',
-        'Hires': 'sum',
-        'Moves_In': 'sum',
-        'Predicted_Exits': 'sum'
-    }).reset_index()
-    company_agg['Level'] = 'Company'
-    company_agg['Name'] = company_agg['Company']
-    company_agg['Parent'] = company_agg['SBU']
-    
-    # Cost Center Level
-    cc_agg = df.groupby(['SBU', 'Company', 'Cost_Center']).agg({
-        'Current_Employee': 'sum',
-        'Exits': 'sum',
-        'Moves_Out': 'sum',
-        'Hires': 'sum',
-        'Moves_In': 'sum',
-        'Predicted_Exits': 'sum'
-    }).reset_index()
-    cc_agg['Level'] = 'Cost Center'
-    cc_agg['Name'] = cc_agg['Cost_Center']
-    cc_agg['Parent'] = cc_agg['Company']
-    
-    # Employee Level
-    emp_agg = df[['Employee_ID', 'SBU', 'Company', 'Cost_Center', 'Current_Employee', 
-                  'Exits', 'Moves_Out', 'Hires', 'Moves_In', 'Predicted_Exits']].copy()
-    emp_agg['Level'] = 'Employee'
-    emp_agg['Name'] = emp_agg['Employee_ID']
-    emp_agg['Parent'] = emp_agg['Cost_Center']
-    
-    return sbu_agg, company_agg, cc_agg, emp_agg
+# Calculate key workforce metrics
+current_employees = filtered_data['Current_Employee'].sum()
+exits = filtered_data['Exits'].sum()
+moves_out = filtered_data['Moves_Out'].sum()
+hires = filtered_data['Hires'].sum()
+moves_in = filtered_data['Moves_In'].sum()
+predicted_exits = filtered_data['Predicted_Exits'].sum()
 
-sbu_agg, company_agg, cc_agg, emp_agg = create_hierarchy_table(filtered_data)
+# Calculate projected count
+projected_count = current_employees - exits - moves_out + hires + moves_in - predicted_exits
 
-# Calculate projected and all targets for each level
-def calculate_targets(df_level, base_count):
-    df_level['Projected'] = (df_level['Current_Employee'] - df_level['Exits'] - 
-                              df_level['Moves_Out'] + df_level['Hires'] + 
-                              df_level['Moves_In'] - df_level['Predicted_Exits'])
-    
-    # Calculate all three target types
-    df_level['Re_Org_Target'] = (df_level['Current_Employee'] * 0.95).astype(int)
-    df_level['AI_Target'] = (df_level['Current_Employee'] * 0.90).astype(int)
-    
-    # Demand target only for commercial and operational jobs
-    # Check if this level has commercial/operational jobs
-    commercial_operational = ['Sales', 'Operations']  # Job family groups that are commercial/operational
-    
-    # For mock data, we'll apply demand targets to all levels
-    # In real implementation, this would check actual job family group distribution per level
-    # and only apply demand targets where commercial/operational roles exist
-    df_level['Demand_Target'] = (df_level['Current_Employee'] * 1.05).astype(int)
-    
-    # Note: In production, you would filter by job family groups like this:
-    # commercial_ops_mask = df_level['Job_Family_Group'].isin(commercial_operational)
-    # df_level.loc[commercial_ops_mask, 'Demand_Target'] = (df_level.loc[commercial_ops_mask, 'Current_Employee'] * 1.05).astype(int)
-    # df_level.loc[~commercial_ops_mask, 'Demand_Target'] = df_level.loc[~commercial_ops_mask, 'Current_Employee']  # No change for non-commercial
-    
-    # Calculate deltas for all targets
-    df_level['Re_Org_Delta'] = df_level['Projected'] - df_level['Re_Org_Target']
-    df_level['AI_Delta'] = df_level['Projected'] - df_level['AI_Target']
-    df_level['Demand_Delta'] = df_level['Projected'] - df_level['Demand_Target']
-    
-    # Add indicators for each target
-    def get_indicator(delta):
-        if abs(delta) <= 2:  # Within 2 FTE is "about right"
-            return "✅ About Right"
-        elif delta > 0:
-            return "⚠️ Above Target (Too Much)"
-        else:
-            return "🔴 Below Target (Too Little)"
-    
-    df_level['Re_Org_Indicator'] = df_level['Re_Org_Delta'].apply(get_indicator)
-    df_level['AI_Indicator'] = df_level['AI_Delta'].apply(get_indicator)
-    df_level['Demand_Indicator'] = df_level['Demand_Delta'].apply(get_indicator)
-    
-    return df_level
+# Calculate targets with more realistic CHRO logic
+re_org_target = int(current_employees * 0.95)  # 5% reduction for reorganization
+ai_target = int(current_employees * 0.85)     # 15% reduction due to AI automation
+demand_target = int(current_employees * 1.08)  # 8% growth due to business demand
 
-# Apply target calculations to all levels
-sbu_agg = calculate_targets(sbu_agg, current_count)
-company_agg = calculate_targets(company_agg, current_count)
-cc_agg = calculate_targets(cc_agg, current_count)
-emp_agg = calculate_targets(emp_agg, current_count)
+# Calculate deltas
+re_org_delta = projected_count - re_org_target
+ai_delta = projected_count - ai_target
+demand_delta = projected_count - demand_target
 
-# Add employee count summaries for higher aggregation levels
-def add_employee_summaries(company_agg, cc_agg, sbu_agg):
-    # Function to categorize employees based on delta
-    def categorize_employees(delta):
-        if delta > 2:  # More than 2 FTE above target
-            return {'too_many': abs(delta), 'about_right': 0, 'too_little': 0}
-        elif delta < -2:  # More than 2 FTE below target
-            return {'too_many': 0, 'about_right': 0, 'too_little': abs(delta)}
-        else:  # Within ±2 FTE
-            return {'too_many': 0, 'about_right': abs(delta) if abs(delta) <= 2 else 2, 'too_little': 0}
-    
-    # Calculate employee counts per company (sum of all cost centers)
-    cc_employee_counts = cc_agg.groupby(['SBU', 'Company']).agg({
-        'Re_Org_Delta': lambda x: sum([categorize_employees(d)['too_many'] for d in x]),
-        'AI_Delta': lambda x: sum([categorize_employees(d)['too_many'] for d in x]),
-        'Demand_Delta': lambda x: sum([categorize_employees(d)['too_many'] for d in x])
-    }).reset_index()
-    
-    # Add about right and too little counts
-    for target in ['Re_Org', 'AI', 'Demand']:
-        cc_employee_counts[f'{target}_About_Right'] = cc_agg.groupby(['SBU', 'Company'])[f'{target}_Delta'].apply(
-            lambda x: sum([categorize_employees(d)['about_right'] for d in x])
-        ).reset_index()[f'{target}_Delta']
-        cc_employee_counts[f'{target}_Too_Little'] = cc_agg.groupby(['SBU', 'Company'])[f'{target}_Delta'].apply(
-            lambda x: sum([categorize_employees(d)['too_little'] for d in x])
-        ).reset_index()[f'{target}_Delta']
-    
-    # Rename columns
-    cc_employee_counts.columns = ['SBU', 'Company', 'Re_Org_Too_Many', 'AI_Too_Many', 'Demand_Too_Many',
-                                 'Re_Org_About_Right', 'AI_About_Right', 'Demand_About_Right',
-                                 'Re_Org_Too_Little', 'AI_Too_Little', 'Demand_Too_Little']
-    
-    # Merge with company data
-    company_agg = company_agg.merge(cc_employee_counts, on=['SBU', 'Company'], how='left')
-    
-    # Calculate company employee counts per SBU
-    company_employee_counts = company_agg.groupby('SBU').agg({
-        'Re_Org_Too_Many': 'sum', 'Re_Org_About_Right': 'sum', 'Re_Org_Too_Little': 'sum',
-        'AI_Too_Many': 'sum', 'AI_About_Right': 'sum', 'AI_Too_Little': 'sum',
-        'Demand_Too_Many': 'sum', 'Demand_About_Right': 'sum', 'Demand_Too_Little': 'sum'
-    }).reset_index()
-    
-    # Rename for SBU level
-    company_employee_counts.columns = ['SBU', 'SBU_Re_Org_Too_Many', 'SBU_Re_Org_About_Right', 'SBU_Re_Org_Too_Little',
-                                      'SBU_AI_Too_Many', 'SBU_AI_About_Right', 'SBU_AI_Too_Little',
-                                      'SBU_Demand_Too_Many', 'SBU_Demand_About_Right', 'SBU_Demand_Too_Little']
-    
-    # Merge with SBU data
-    sbu_agg = sbu_agg.merge(company_employee_counts, on='SBU', how='left')
-    
-    return sbu_agg, company_agg
+# Display metrics in CHRO-friendly format
+col1, col2, col3, col4 = st.columns(4)
 
-sbu_agg, company_agg = add_employee_summaries(company_agg, cc_agg, sbu_agg)
+with col1:
+    st.metric(
+        "Current Employees", 
+        f"{current_employees:,}",
+        help="Total current employee count"
+    )
 
-# Status Summary Section
-st.markdown("#### 📊 Employee Count Summary")
+with col2:
+    st.metric(
+        "Projected Count", 
+        f"{projected_count:,}",
+        delta=projected_count - current_employees,
+        help="Expected headcount after planned movements"
+    )
+
+with col3:
+    st.metric(
+        "Re-Org Target", 
+        f"{re_org_target:,}",
+        delta=re_org_delta,
+        help="Target headcount after reorganization (5% reduction)"
+    )
+
+with col4:
+    st.metric(
+        "AI Target", 
+        f"{ai_target:,}",
+        delta=ai_delta,
+        help="Target headcount considering AI automation impact (15% reduction)"
+    )
+
+# Additional CHRO insights
+st.markdown("**Key Workforce Insights:**")
 col1, col2, col3 = st.columns(3)
 
 with col1:
-    st.markdown("##### 🔄 Re-Organization Target")
-    # Calculate totals across all SBUs
-    too_many = sbu_agg['SBU_Re_Org_Too_Many'].sum() if 'SBU_Re_Org_Too_Many' in sbu_agg.columns else 0
-    about_right = sbu_agg['SBU_Re_Org_About_Right'].sum() if 'SBU_Re_Org_About_Right' in sbu_agg.columns else 0
-    too_little = sbu_agg['SBU_Re_Org_Too_Little'].sum() if 'SBU_Re_Org_Too_Little' in sbu_agg.columns else 0
-    
-    st.metric("⚠️ Too Many", too_many)
-    st.metric("✅ About Right", about_right)
-    st.metric("🔴 Too Little", too_little)
+    st.info(f"**Turnover Rate:** {(exits/current_employees*100):.1f}% (Target: <12%)")
 
 with col2:
-    st.markdown("##### 🤖 AI Target")
-    # Calculate totals across all SBUs
-    too_many = sbu_agg['SBU_AI_Too_Many'].sum() if 'SBU_AI_Too_Many' in sbu_agg.columns else 0
-    about_right = sbu_agg['SBU_AI_About_Right'].sum() if 'SBU_AI_About_Right' in sbu_agg.columns else 0
-    too_little = sbu_agg['SBU_AI_Too_Little'].sum() if 'SBU_AI_Too_Little' in sbu_agg.columns else 0
-    
-    st.metric("⚠️ Too Many", too_many)
-    st.metric("✅ About Right", about_right)
-    st.metric("🔴 Too Little", too_little)
+    st.info(f"**Hiring Rate:** {(hires/current_employees*100):.1f}% (Target: 15-20%)")
 
 with col3:
-    st.markdown("##### 📈 Demand Target")
-    # Calculate totals across all SBUs
-    too_many = sbu_agg['SBU_Demand_Too_Many'].sum() if 'SBU_Demand_Too_Many' in sbu_agg.columns else 0
-    about_right = sbu_agg['SBU_Demand_About_Right'].sum() if 'SBU_Demand_About_Right' in sbu_agg.columns else 0
-    too_little = sbu_agg['SBU_Demand_Too_Little'].sum() if 'SBU_Demand_Too_Little' in sbu_agg.columns else 0
+    st.info(f"**Predicted Risk:** {(predicted_exits/current_employees*100):.1f}% at risk of leaving")
+
+st.markdown("---")
+
+# Section 3: AG Grid PivotTable Implementation - Following the Blog Post Exactly
+st.markdown("#### 📋 Workforce Data PivotTable")
+
+# Prepare data for AG Grid - include all previous table logic
+pivot_data = filtered_data.copy()
+
+# Add calculated fields from previous version
+pivot_data['Projected_Count'] = (pivot_data['Current_Employee'] - pivot_data['Exits'] - 
+                                 pivot_data['Moves_Out'] + pivot_data['Hires'] + 
+                                 pivot_data['Moves_In'] - pivot_data['Predicted_Exits'])
+
+# Add target calculations with realistic CHRO logic
+pivot_data['Re_Org_Target'] = (pivot_data['Current_Employee'] * 0.95).astype(int)  # 5% reduction
+pivot_data['AI_Target'] = (pivot_data['Current_Employee'] * 0.85).astype(int)     # 15% reduction
+pivot_data['Demand_Target'] = (pivot_data['Current_Employee'] * 1.08).astype(int)  # 8% growth
+
+# Add delta calculations
+pivot_data['Re_Org_Delta'] = pivot_data['Projected_Count'] - pivot_data['Re_Org_Target']
+pivot_data['AI_Delta'] = pivot_data['Projected_Count'] - pivot_data['AI_Target']
+pivot_data['Demand_Delta'] = pivot_data['Projected_Count'] - pivot_data['Demand_Target']
+
+# Add risk indicators from previous version
+def get_risk_level(row):
+    max_delta = max(abs(row['Re_Org_Delta']), abs(row['AI_Delta']), abs(row['Demand_Delta']))
+    if max_delta <= 2:
+        return "Low Risk"
+    elif max_delta <= 5:
+        return "Medium Risk"
+    else:
+        return "High Risk"
+
+pivot_data['Risk_Level'] = pivot_data.apply(get_risk_level, axis=1)
+
+# Add movement calculations
+pivot_data['Total_Movement'] = (pivot_data['Exits'] + pivot_data['Moves_Out'] + 
+                                pivot_data['Hires'] + pivot_data['Moves_In'])
+pivot_data['Net_Movement'] = (pivot_data['Hires'] + pivot_data['Moves_In'] - 
+                              pivot_data['Exits'] - pivot_data['Moves_Out'])
+
+# Add Year and Month columns for pivoting
+pivot_data['Year'] = 2024
+pivot_data['Month'] = np.random.randint(1, 13, len(pivot_data))
+pivot_data['Quarter'] = ((pivot_data['Month'] - 1) // 3) + 1
+
+# Add employee category for CHRO insights
+def categorize_employee(row):
+    grade_num = int(row['Grade'].split()[-1])
+    progression = row['Grade_Progression']
     
-    st.metric("⚠️ Too Many", too_many)
-    st.metric("✅ About Right", about_right)
-    st.metric("🔴 Too Little", too_little)
+    if grade_num >= 13:  # High grade (grades 13-25)
+        if progression >= 0:
+            return 'Peaking'
+        else:
+            return 'Established'
+    else:  # Low grade (grades 1-12)
+        if progression >= 0:
+            return 'Rising'
+        else:
+            return 'Developing'
+
+pivot_data['Category'] = pivot_data.apply(categorize_employee, axis=1)
+
+# Pivot mode toggle - exactly like the blog post
+shouldDisplayPivoted = st.checkbox("Enable Pivot Mode", help="Toggle to enable row grouping and column pivoting")
+
+# Configure AG Grid following the blog post exactly
+gb = GridOptionsBuilder.from_dataframe(pivot_data)
+
+# Configure default columns - exactly like the blog post
+gb.configure_default_column(
+    resizable=True,
+    filterable=True,
+    sortable=True,
+    editable=False,
+    enablePivot=True,
+    enableValue=True,
+    enableRowGroup=True,
+)
+
+# Configure columns - following the blog post pattern with row grouping
+gb.configure_column(field="SBU", header_name="SBU", width=120, rowGroup=shouldDisplayPivoted)
+gb.configure_column(field="Company", header_name="Company", width=150, rowGroup=shouldDisplayPivoted)
+gb.configure_column(field="Cost_Center", header_name="Cost Center", width=120, rowGroup=shouldDisplayPivoted)
+gb.configure_column(field="Job_Family_Group", header_name="Job Family Group", width=150, rowGroup=shouldDisplayPivoted)
+gb.configure_column(field="Job_Family", header_name="Job Family", width=150, rowGroup=shouldDisplayPivoted)
+gb.configure_column(field="Job_Profile", header_name="Job Profile", width=120)
+gb.configure_column(field="Grade", header_name="Grade", width=80)
+gb.configure_column(field="Category", header_name="Talent Category", width=120)
+gb.configure_column(field="Risk_Level", header_name="Risk Level", width=100)
+
+# Configure pivot columns - exactly like the blog post
+gb.configure_column(
+    field="Month",
+    header_name="Month",
+    width=80,
+    pivot=True,
+    hide=True,
+    valueGetter="data.Month"
+)
+
+gb.configure_column(
+    field="Quarter",
+    header_name="Quarter",
+    width=80,
+    pivot=True,
+    hide=True,
+    valueGetter="data.Quarter"
+)
+
+# Configure value columns with aggregation - exactly like the blog post
+gb.configure_column(
+    field="Current_Employee",
+    header_name="Current Employees",
+    width=120,
+    type=["numericColumn"],
+    aggFunc="sum",
+    valueFormatter="value.toLocaleString()",
+)
+
+gb.configure_column(
+    field="Projected_Count",
+    header_name="Projected Count",
+    width=120,
+    type=["numericColumn"],
+    aggFunc="sum",
+    valueFormatter="value.toLocaleString()",
+)
+
+gb.configure_column(
+    field="Re_Org_Delta",
+    header_name="Re-Org Delta",
+    width=100,
+    type=["numericColumn"],
+    aggFunc="sum",
+    valueFormatter="value.toLocaleString()",
+)
+
+gb.configure_column(
+    field="AI_Delta",
+    header_name="AI Delta",
+    width=100,
+    type=["numericColumn"],
+    aggFunc="sum",
+    valueFormatter="value.toLocaleString()",
+)
+
+gb.configure_column(
+    field="Demand_Delta",
+    header_name="Demand Delta",
+    width=100,
+    type=["numericColumn"],
+    aggFunc="sum",
+    valueFormatter="value.toLocaleString()",
+)
+
+gb.configure_column(
+    field="Total_Movement",
+    header_name="Total Movement",
+    width=120,
+    type=["numericColumn"],
+    aggFunc="sum",
+    valueFormatter="value.toLocaleString()",
+)
+
+gb.configure_column(
+    field="Net_Movement",
+    header_name="Net Movement",
+    width=120,
+    type=["numericColumn"],
+    aggFunc="sum",
+    valueFormatter="value.toLocaleString()",
+)
+
+gb.configure_column(
+    field="Exits",
+    header_name="Exits",
+    width=80,
+    type=["numericColumn"],
+    aggFunc="sum",
+    valueFormatter="value.toLocaleString()",
+)
+
+gb.configure_column(
+    field="Hires",
+    header_name="Hires",
+    width=80,
+    type=["numericColumn"],
+    aggFunc="sum",
+    valueFormatter="value.toLocaleString()",
+)
+
+gb.configure_column(
+    field="Predicted_Exits",
+    header_name="At Risk",
+    width=80,
+    type=["numericColumn"],
+    aggFunc="sum",
+    valueFormatter="value.toLocaleString()",
+)
+
+# Enable AG Grid sidebar for pivot controls
+gb.configure_side_bar()
+
+# Configure grid options - exactly like the blog post
+gb.configure_grid_options(
+    tooltipShowDelay=0,
+    pivotMode=shouldDisplayPivoted,
+    autoGroupColumnDef=dict(
+        minWidth=300,
+        pinned="left",
+        cellRendererParams=dict(suppressCount=True)
+    )
+)
+
+# Build grid options
+go = gb.build()
+
+# Display the AG Grid - exactly like the blog post
+AgGrid(
+    pivot_data,
+    gridOptions=go,
+    height=600,
+    enable_enterprise_modules=True,
+)
+
+# CHRO Action Items
+st.markdown("---")
+st.markdown("#### 🎯 CHRO Action Items")
+
+col1, col2 = st.columns(2)
+
+with col1:
+    st.markdown("**High Priority Actions:**")
+    if ai_delta > 0:
+        st.warning(f"⚠️ **AI Impact:** {ai_delta} employees above AI target - consider reskilling/transition planning")
+    if re_org_delta > 10:
+        st.warning(f"⚠️ **Re-Org:** {re_org_delta} employees above reorganization target - plan workforce reduction")
+    if predicted_exits > current_employees * 0.15:
+        st.error(f"🚨 **Retention Risk:** {(predicted_exits/current_employees*100):.1f}% at risk - implement retention strategies")
+
+with col2:
+    st.markdown("**Strategic Opportunities:**")
+    if demand_delta > 0:
+        st.success(f"📈 **Growth Ready:** {demand_delta} employees above demand target - scale operations")
+    if projected_count > current_employees:
+        st.info(f"📊 **Net Growth:** +{projected_count - current_employees} employees - ensure onboarding capacity")
+    if hires > exits:
+        st.info(f"✅ **Positive Flow:** Net +{hires - exits} employees - maintain hiring momentum")
 
 st.markdown("---")
-
-# Display hierarchical view with expanders
-st.markdown("##### 🏢 SBU Level Summary")
-st.markdown("**Note**: Shows actual employee counts that are too many, about right, or too little for each target type.")
-
-sbu_display = sbu_agg[['Name', 'Current_Employee', 'Exits', 'Moves_Out', 'Hires', 
-                         'Moves_In', 'Predicted_Exits', 'Projected', 
-                         'Re_Org_Target', 'SBU_Re_Org_Too_Many', 'SBU_Re_Org_About_Right', 'SBU_Re_Org_Too_Little',
-                         'AI_Target', 'SBU_AI_Too_Many', 'SBU_AI_About_Right', 'SBU_AI_Too_Little',
-                         'Demand_Target', 'SBU_Demand_Too_Many', 'SBU_Demand_About_Right', 'SBU_Demand_Too_Little']].copy()
-sbu_display.columns = ['SBU', 'Current', 'Exits', 'Moves Out', 'Hires', 
-                        'Moves In', 'Predicted Exits', 'Projected',
-                        'Re-Org Target', 'Re-Org Too Many', 'Re-Org About Right', 'Re-Org Too Little',
-                        'AI Target', 'AI Too Many', 'AI About Right', 'AI Too Little',
-                        'Demand Target', 'Demand Too Many', 'Demand About Right', 'Demand Too Little']
-st.dataframe(sbu_display, use_container_width=True, hide_index=True)
-
-# Expandable views for each SBU
-for sbu in sbu_agg['SBU'].unique():
-    with st.expander(f"📂 {sbu} - Detailed View"):
-        # Company level for this SBU
-        company_subset = company_agg[company_agg['SBU'] == sbu]
-        st.markdown(f"**Companies in {sbu}**")
-        company_display = company_subset[['Name', 'Current_Employee', 'Exits', 'Moves_Out', 'Hires', 
-                                           'Moves_In', 'Predicted_Exits', 'Projected',
-                                           'Re_Org_Target', 'Re_Org_Too_Many', 'Re_Org_About_Right', 'Re_Org_Too_Little',
-                                           'AI_Target', 'AI_Too_Many', 'AI_About_Right', 'AI_Too_Little',
-                                           'Demand_Target', 'Demand_Too_Many', 'Demand_About_Right', 'Demand_Too_Little']].copy()
-        company_display.columns = ['Company', 'Current', 'Exits', 'Moves Out', 'Hires', 
-                                    'Moves In', 'Predicted Exits', 'Projected',
-                                    'Re-Org Target', 'Re-Org Too Many', 'Re-Org About Right', 'Re-Org Too Little',
-                                    'AI Target', 'AI Too Many', 'AI About Right', 'AI Too Little',
-                                    'Demand Target', 'Demand Too Many', 'Demand About Right', 'Demand Too Little']
-        st.dataframe(company_display, use_container_width=True, hide_index=True)
-        
-        # Cost center level
-        for company in company_subset['Company'].unique():
-            with st.expander(f"  📁 {company} - Cost Centers"):
-                cc_subset = cc_agg[(cc_agg['SBU'] == sbu) & (cc_agg['Company'] == company)]
-                cc_display = cc_subset[['Name', 'Current_Employee', 'Exits', 'Moves_Out', 'Hires', 
-                                         'Moves_In', 'Predicted_Exits', 'Projected',
-                                         'Re_Org_Target', 'Re_Org_Delta', 'Re_Org_Indicator',
-                                         'AI_Target', 'AI_Delta', 'AI_Indicator',
-                                         'Demand_Target', 'Demand_Delta', 'Demand_Indicator']].copy()
-                cc_display.columns = ['Cost Center', 'Current', 'Exits', 'Moves Out', 'Hires', 
-                                       'Moves In', 'Predicted Exits', 'Projected',
-                                       'Re-Org Target', 'Re-Org Δ', 'Re-Org Status',
-                                       'AI Target', 'AI Δ', 'AI Status', 
-                                       'Demand Target', 'Demand Δ', 'Demand Status']
-                st.dataframe(cc_display, use_container_width=True, hide_index=True)
-                
-                # Employee level (optional - can be very detailed)
-                for cc in cc_subset['Cost_Center'].unique():
-                    with st.expander(f"    👥 {cc} - Employees"):
-                        emp_subset = emp_agg[(emp_agg['SBU'] == sbu) & 
-                                              (emp_agg['Company'] == company) & 
-                                              (emp_agg['Cost_Center'] == cc)]
-                        emp_display = emp_subset[['Name', 'Current_Employee', 'Exits', 'Moves_Out', 
-                                                   'Hires', 'Moves_In', 'Predicted_Exits', 'Projected',
-                                                   'Re_Org_Target', 'Re_Org_Delta', 'Re_Org_Indicator',
-                                                   'AI_Target', 'AI_Delta', 'AI_Indicator',
-                                                   'Demand_Target', 'Demand_Delta', 'Demand_Indicator']].copy()
-                        emp_display.columns = ['Employee ID', 'Current', 'Exits', 'Moves Out', 'Hires', 
-                                                'Moves In', 'Predicted Exits', 'Projected',
-                                                'Re-Org Target', 'Re-Org Δ', 'Re-Org Status',
-                                                'AI Target', 'AI Δ', 'AI Status', 
-                                                'Demand Target', 'Demand Δ', 'Demand Status']
-                        st.dataframe(emp_display, use_container_width=True, hide_index=True)
-
-st.markdown("---")
-st.caption("💡 This is a mock-up dashboard with generated data for demonstration purposes.")
+st.caption("💡 **CHRO Dashboard:** Strategic workforce planning with AI-driven insights for executive decision-making")
 
